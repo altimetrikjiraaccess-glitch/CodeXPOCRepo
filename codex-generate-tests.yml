@@ -24,8 +24,8 @@ jobs:
       JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
       JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
       CODEX_BASE: ${{ secrets.CODEX_BASE }}
-      CODEX_API_KEY: ${{ secrets.CODEX_API_KEY }}
-      AC_FIELD: customfield_12345          # <— replace with your AC field id
+     
+      AC_FIELD: customfield_10059         # <— replace with your AC field id
       TEST_ISSUETYPE_NAME: Test
       LINK_TYPE_NAME: Tests
     steps:
