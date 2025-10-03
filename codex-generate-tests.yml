@@ -20,10 +20,10 @@ jobs:
       contents: write
       pull-requests: write
     env:
-      JIRA_BASE: ${{ secrets.JIRA_BASE }}
-      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
-      JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
-      CODEX_BASE: ${{ secrets.CODEX_BASE }}
+      JIRA_BASE: ${{ variables.JIRA_BASE }}
+      JIRA_EMAIL: ${{ variables.JIRA_EMAIL }}
+      JIRA_TOKEN: ${{ variables.JIRA_TOKEN }}
+      CODEX_BASE: ${{ variables.CODEX_BASE }}
      
       AC_FIELD: customfield_10059         # <— replace with your AC field id
       TEST_ISSUETYPE_NAME: Test
