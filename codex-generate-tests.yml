@@ -6,12 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       jira_key:
-        description: "SRUM-1"
+        description: "SCRUM-1"
         required: true
       mode:
         description: "both"
         required: false
-        default: "jira"
+        default: "both"
 
 jobs:
   generate:
@@ -57,7 +57,7 @@ jobs:
             --mode "${{ steps.meta.outputs.MODE }}"
 
       - name: Create branch & PR (repo or both)
-        if: steps.meta.outputs.MODE == 'repo' || steps.meta.outputs.MODE == 'jira'
+        if: steps.meta.outputs.MODE == 'repo' || steps.meta.outputs.MODE == 'both'
         run: |
           BR="tests/${{ steps.meta.outputs.JIRA_KEY }}"
           git config user.name "github-actions[bot]"
