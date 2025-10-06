@@ -1,0 +1,12 @@
+{
+  "key": "DEMO-1",
+  "fields": {
+    "summary": "User can reset password via email link",
+    "description": "As a user I want to reset my password so that I can regain access.",
+    "labels": ["poc"],
+    "priority": {"name": "Medium"},
+    "project": {"key": "DEMO"},
+    "status": {"name": "To Do"},
+    "customfield_10059": "Given the user has requested a reset email, when the link is used the password can be changed.\n- Email link expires after one use."
+  }
+}

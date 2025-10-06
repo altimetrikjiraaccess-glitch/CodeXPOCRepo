@@ -1,10 +1,19 @@
-try:
-    import requests  # noqa
-except ImportError:
-    import subprocess, sys
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
+HAS_REQUESTS = True
 
-import os, sys, json, argparse, hashlib, requests, pathlib, textwrap, re
+try:
+    import requests  # noqa: F401
+except ImportError:  # pragma: no cover - offline fallback
+    HAS_REQUESTS = False
+    class _RequestsStub:
+        def __getattr__(self, name):  # noqa: D401 - simple helper
+            raise ImportError(
+                "The 'requests' package is required for Jira or CodeX API access. "
+                "Install it with 'pip install requests' to enable those modes."
+            )
+
+    requests = _RequestsStub()  # type: ignore
+
+import os, sys, json, argparse, hashlib, pathlib, textwrap, re
 
 JIRA_BASE  = os.getenv("JIRA_BASE")
 
@@ -254,6 +263,28 @@ def write_repo_tests(issue_key, tests):
 
     (base / f"{issue_key}.feature").write_text("Feature: Auto tests\n\n" + "\n".join(feat), encoding="utf-8")
 
+def load_issue_from_file(path):
+
+    with open(path, "r", encoding="utf-8") as fh:
+
+        data = json.load(fh)
+
+    if "fields" not in data:
+
+        raise ValueError("Issue JSON must include a 'fields' object")
+
+    return data
+
+
+def require_env(vars_):
+
+    missing = [name for name in vars_ if not globals().get(name)]
+
+    if missing:
+
+        raise SystemExit(f"Missing required environment variables: {', '.join(missing)}")
+
+
 def main():
 
     ap = argparse.ArgumentParser()
@@ -262,13 +293,25 @@ def main():
 
     ap.add_argument("--mode", choices=["repo","jira","both"], default="repo")
 
+    ap.add_argument("--issue-json", help="Load issue payload from JSON instead of calling Jira")
+
     args = ap.parse_args()
 
-    issue = jira_get_issue(args.jira_key, fields=[
+    if args.issue_json:
 
-        "summary","description","labels","priority","project","status",AC_FIELD
+        issue = load_issue_from_file(args.issue_json)
 
-    ])
+        issue.setdefault("key", args.jira_key)
+
+    else:
+
+        require_env(["JIRA_BASE", "JIRA_EMAIL", "JIRA_TOKEN"])
+
+        issue = jira_get_issue(args.jira_key, fields=[
+
+            "summary","description","labels","priority","project","status",AC_FIELD
+
+        ])
 
     f = issue["fields"]
 
@@ -326,17 +369,31 @@ def main():
 
             created.append(tk)
 
-    try:
+    if HAS_REQUESTS and not args.issue_json:
 
-        note = f"CodeX: generated {len(tests)} test(s) (mode={args.mode}, hash={h})."
+        try:
 
-        if created: note += " Created Jira Tests: " + ", ".join(created)
+            note = f"CodeX: generated {len(tests)} test(s) (mode={args.mode}, hash={h})."
 
-        jira_comment(args.jira_key, note)
+            if created:
 
-    except Exception as e:
+                note += " Created Jira Tests: " + ", ".join(created)
 
-        print("Comment failed:", e, file=sys.stderr)
+            jira_comment(args.jira_key, note)
+
+        except Exception as e:
+
+            print("Comment failed:", e, file=sys.stderr)
+
+    elif args.mode in ("jira","both"):
+
+        print(
+
+            "Comment skipped: requests package unavailable or issue loaded from file.",
+
+            file=sys.stderr,
+
+        )
 
 if __name__ == "__main__":
 
