@@ -1,4 +1,4 @@
 curl -H "Authorization: Bearer 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" \
      -H "Accept: application/vnd.github+json" \
      https://api.github.com/repos/altimetrikjiraaccess-glitch/CodeXPOCRepo/dispatches \
-     -d '{"event_type":"codex_generate_tests","client_payload":{"jira_key":"SCRUM-1","mode":"jira"}}'
+     -d '{"event_type":"codex_generate_tests","client_payload":{"jira_key":"SCRUM-1","mode":"both"}}'
