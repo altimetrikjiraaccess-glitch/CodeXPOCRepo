@@ -6,12 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       jira_key:
-        description: "Jira issue key (e.g., ABC-123)"
+        description: "SCRUM-1" 
         required: true
       mode:
         description: "repo | jira | both"
         required: false
-        default: "repo"
+        default: "both" 
 
 jobs:
   generate:
