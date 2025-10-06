@@ -1,4 +1,14 @@
-import os, sys, json, argparse, hashlib, requests, pathlib, textwrap, re
+import argparse
+import base64
+import hashlib
+import json
+import os
+import pathlib
+import re
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 
 JIRA_BASE  = os.getenv("JIRA_BASE")
 
@@ -13,6 +23,99 @@ TEST_ISSUETYPE_NAME = os.getenv("TEST_ISSUETYPE_NAME","Test")
 LINK_TYPE_NAME       = os.getenv("LINK_TYPE_NAME","Tests")
 
 CODEX_BASE = os.getenv("CODEX_BASE")
+CODEX_API_KEY = os.getenv("CODEX_API_KEY")
+
+
+class HTTPError(RuntimeError):
+
+    def __init__(self, status_code, message, body=""):
+
+        super().__init__(message)
+
+        self.status_code = status_code
+
+        self.body = body
+
+
+class SimpleResponse:
+
+    def __init__(self, status_code, data, headers):
+
+        self.status_code = status_code
+
+        self._data = data or b""
+
+        self.headers = headers or {}
+
+    def raise_for_status(self):
+
+        if 200 <= self.status_code < 300:
+
+            return
+
+        snippet = self.text[:200]
+
+        raise HTTPError(self.status_code, f"HTTP {self.status_code}: {snippet}", body=self.text)
+
+    @property
+    def text(self):
+
+        return self._data.decode("utf-8", errors="replace")
+
+    def json(self):
+
+        if not self._data:
+
+            return {}
+
+        return json.loads(self.text)
+
+
+def http_request(method, url, *, headers=None, params=None, json_body=None, auth=None, timeout=30):
+
+    headers = dict(headers or {})
+
+    if params:
+
+        query = urllib.parse.urlencode(params)
+
+        parsed = urllib.parse.urlparse(url)
+
+        sep = "&" if parsed.query else "?"
+
+        url = f"{url}{sep}{query}"
+
+    data = None
+
+    if json_body is not None:
+
+        data = json.dumps(json_body).encode("utf-8")
+
+        headers.setdefault("Content-Type", "application/json")
+
+    if auth:
+
+        user, token = auth
+
+        basic = base64.b64encode(f"{user}:{token}".encode("utf-8")).decode("ascii")
+
+        headers["Authorization"] = f"Basic {basic}"
+
+    req = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
+
+    try:
+
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+
+            return SimpleResponse(resp.status, resp.read(), dict(resp.headers.items()))
+
+    except urllib.error.HTTPError as exc:
+
+        return SimpleResponse(exc.code, exc.read(), dict((exc.headers or {}).items()))
+
+    except urllib.error.URLError as exc:
+
+        raise ConnectionError(f"Failed to call {url}: {exc}") from exc
 
 
 def jira_headers():
@@ -29,13 +132,29 @@ def jira_get_issue(key, fields=None):
 
     params = {}
 
-    if fields: params["fields"] = ",".join(fields)
+    if fields:
 
-    r = requests.get(f"{JIRA_BASE}/rest/api/3/issue/{key}",
+        params["fields"] = ",".join(fields)
 
-                     headers=jira_headers(), params=params, auth=(JIRA_EMAIL, JIRA_TOKEN), timeout=30)
+    r = http_request(
 
-    r.raise_for_status(); return r.json()
+        "GET",
+
+        f"{JIRA_BASE}/rest/api/3/issue/{key}",
+
+        headers=jira_headers(),
+
+        params=params,
+
+        auth=(JIRA_EMAIL, JIRA_TOKEN),
+
+        timeout=30,
+
+    )
+
+    r.raise_for_status()
+
+    return r.json()
 
 def jira_create_test(project_key, summary, adf_description, labels=None, priority=None):
 
@@ -59,27 +178,65 @@ def jira_create_test(project_key, summary, adf_description, labels=None, priorit
 
     if priority: payload["fields"]["priority"] = {"name": priority}
 
-    r = requests.post(f"{JIRA_BASE}/rest/api/3/issue", headers=jira_headers(),
+    r = http_request(
 
-                      auth=(JIRA_EMAIL, JIRA_TOKEN), json=payload, timeout=30)
+        "POST",
 
-    r.raise_for_status(); return r.json()["key"]
+        f"{JIRA_BASE}/rest/api/3/issue",
+
+        headers=jira_headers(),
+
+        auth=(JIRA_EMAIL, JIRA_TOKEN),
+
+        json_body=payload,
+
+        timeout=30,
+
+    )
+
+    r.raise_for_status()
+
+    return r.json()["key"]
 
 def jira_link(story_key, test_key):
 
     payload = {"type":{"name":LINK_TYPE_NAME}, "inwardIssue":{"key":story_key}, "outwardIssue":{"key":test_key}}
 
-    r = requests.post(f"{JIRA_BASE}/rest/api/3/issueLink", headers=jira_headers(),
+    r = http_request(
 
-                      auth=(JIRA_EMAIL, JIRA_TOKEN), json=payload, timeout=30)
+        "POST",
+
+        f"{JIRA_BASE}/rest/api/3/issueLink",
+
+        headers=jira_headers(),
+
+        auth=(JIRA_EMAIL, JIRA_TOKEN),
+
+        json_body=payload,
+
+        timeout=30,
+
+    )
 
     r.raise_for_status()
 
 def jira_comment(issue_key, text):
 
-    r = requests.post(f"{JIRA_BASE}/rest/api/3/issue/{issue_key}/comment", headers=jira_headers(),
+    r = http_request(
 
-                      auth=(JIRA_EMAIL, JIRA_TOKEN), json={"body": text}, timeout=30)
+        "POST",
+
+        f"{JIRA_BASE}/rest/api/3/issue/{issue_key}/comment",
+
+        headers=jira_headers(),
+
+        auth=(JIRA_EMAIL, JIRA_TOKEN),
+
+        json_body={"body": text},
+
+        timeout=30,
+
+    )
 
     r.raise_for_status()
 
@@ -149,13 +306,25 @@ Return JSON list where each item = {{
 
     try:
 
-        r = requests.post(f"{CODEX_BASE}/v1/generate-tests",
+        r = http_request(
 
-                          headers={"Authorization": f"Bearer {CODEX_API_KEY}",
+            "POST",
 
-                                   "Content-Type": "application/json"},
+            f"{CODEX_BASE}/v1/generate-tests",
 
-                          json={"prompt": prompt, "format":"json"}, timeout=60)
+            headers={
+
+                "Authorization": f"Bearer {CODEX_API_KEY}",
+
+                "Content-Type": "application/json",
+
+            },
+
+            json_body={"prompt": prompt, "format": "json"},
+
+            timeout=60,
+
+        )
 
         r.raise_for_status()
 
