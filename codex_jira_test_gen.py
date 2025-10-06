@@ -19,6 +19,7 @@ TEST_ISSUETYPE_NAME = os.getenv("TEST_ISSUETYPE_NAME","Test")
 LINK_TYPE_NAME       = os.getenv("LINK_TYPE_NAME","Tests")
 
 CODEX_BASE = os.getenv("CODEX_BASE")
+CODEX_API_KEY = os.getenv("CODEX_API_KEY")
 
 
 def jira_headers():
