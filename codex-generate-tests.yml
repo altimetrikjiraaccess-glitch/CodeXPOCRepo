@@ -52,7 +52,7 @@ jobs:
 
       - name: Generate tests (via CodeX, fallback local)
         run: |
-          python .github/scripts/codex_jira_test_gen.py \
+          python codex_jira_test_gen.py \
             --jira-key "${{ steps.meta.outputs.JIRA_KEY }}" \
             --mode "${{ steps.meta.outputs.MODE }}"
 
