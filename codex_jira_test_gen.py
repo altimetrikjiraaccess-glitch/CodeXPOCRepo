@@ -422,7 +422,7 @@ def main():
 
     ap.add_argument("--jira-key", required=True)
 
-    ap.add_argument("--mode", choices=["repo","jira","both"], default="repo")
+    ap.add_argument("--mode", choices=["repo","jira","both"], default="both")
 
     args = ap.parse_args()
 
