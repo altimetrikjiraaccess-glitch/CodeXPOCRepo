@@ -7,6 +7,6 @@ project. To avoid committing long-lived personal access tokens, the script now
 expects a token to be provided via the `GITHUB_TOKEN` environment variable.
 
 ```bash
-export GITHUB_TOKEN="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"
+export GITHUB_TOKEN="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"
 ./run.sh
 ```
