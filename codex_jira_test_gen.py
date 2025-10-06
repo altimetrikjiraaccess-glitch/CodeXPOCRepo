@@ -1,3 +1,9 @@
+try:
+    import requests  # noqa
+except ImportError:
+    import subprocess, sys
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
+
 import os, sys, json, argparse, hashlib, requests, pathlib, textwrap, re
 
 JIRA_BASE  = os.getenv("JIRA_BASE")
