@@ -6,7 +6,6 @@ export STORY_KEY="SCRUM-1"
 export TEST_ISSUE_TYPE="Test"           # or "Test Case" (Zephyr), etc.
 export ISSUE_LINK_TYPE="Relates"        # or "Tests", "Blocks", depending on your scheme
 
-pip install responses
 
 
 python3 create_test_from_story.py
