@@ -1,6 +1,6 @@
-export JIRA_BASE_URL="https://<your-domain>.atlassian.net"
-export JIRA_EMAIL="you@company.com"
-export JIRA_API_TOKEN="<token>"
+export JIRA_BASE_URL="https://altimetrikjiraaccess.atlassian.net"
+export JIRA_EMAIL="altimetrikjiraaccess@gmail.com"
+export JIRA_API_TOKEN="Sub_Codex_POC"
 export JIRA_PROJECT_KEY="SCRUM"
 export STORY_KEY="SCRUM-1"
 export TEST_ISSUE_TYPE="Test"           # or "Test Case" (Zephyr), etc.
