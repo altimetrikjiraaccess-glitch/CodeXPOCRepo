@@ -1,3 +1,5 @@
+export NO_PROXY=localhost,127.0.0.1,.altimetrikjiraaccess.atlassian.net
+# Python requests respects these by default
 export JIRA_BASE_URL="https://altimetrikjiraaccess.atlassian.net"
 export JIRA_EMAIL="altimetrikjiraaccess@gmail.com"
 export JIRA_API_TOKEN="Sub_Codex_POC"
