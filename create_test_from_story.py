@@ -4,7 +4,8 @@ import sys
 from dataclasses import dataclass
 from typing import Mapping
 
-import requests
+from base64 import b64encode
+from urllib import request, error
 
 
 AC_FIELD_ID = "customfield_10059"
@@ -55,12 +56,42 @@ def load_config(env: Mapping[str, str] | None = None) -> JiraConfig:
         issue_link_type=env.get("ISSUE_LINK_TYPE", "Relates"),
     )
 
+def _make_request(method: str, url: str, config: JiraConfig, *, params: Mapping[str, str] | None = None,
+                  data: Mapping | None = None):
+    if params:
+        query = "&".join(f"{request.pathname2url(str(k))}={request.pathname2url(str(v))}" for k, v in params.items())
+        separator = "&" if "?" in url else "?"
+        url = f"{url}{separator}{query}"
+
+    headers = dict(config.headers)
+    user_pass = f"{config.email}:{config.token}".encode()
+    headers["Authorization"] = f"Basic {b64encode(user_pass).decode()}"
+
+    data_bytes = None
+    if data is not None:
+        data_bytes = json.dumps(data).encode("utf-8")
+
+    req = request.Request(url, data=data_bytes, headers=headers, method=method.upper())
+
+    try:
+        with request.urlopen(req) as resp:
+            payload = resp.read()
+            if not payload:
+                return None
+            return json.loads(payload.decode())
+    except error.HTTPError as exc:
+        payload = exc.read().decode()
+        try:
+            details = json.loads(payload)
+        except json.JSONDecodeError:
+            details = payload
+        raise RuntimeError(f"HTTP {exc.code} error for {method} {url}: {details}") from exc
+
+
 def get_story(config: JiraConfig, key: str):
     url = f"{config.base_url}/rest/api/3/issue/{key}"
     params = {"fields": f"summary,{AC_FIELD_ID}"}
-    r = requests.get(url, headers=config.headers, params=params, auth=config.auth)
-    r.raise_for_status()
-    return r.json()
+    return _make_request("GET", url, config, params=params)
 
 def ac_to_test_description(story_key: str, story_summary, ac_value):
     """
@@ -98,9 +129,8 @@ def create_test_issue(config: JiraConfig, summary: str, description: str):
             "description": description
         }
     }
-    r = requests.post(url, headers=config.headers, data=json.dumps(payload), auth=config.auth)
-    r.raise_for_status()
-    return r.json()["key"]
+    result = _make_request("POST", url, config, data=payload)
+    return result["key"]
 
 def link_issues(config: JiraConfig, inward_key: str, outward_key: str, link_name: str = "Relates"):
     url = f"{config.base_url}/rest/api/3/issueLink"
@@ -109,8 +139,7 @@ def link_issues(config: JiraConfig, inward_key: str, outward_key: str, link_name
         "inwardIssue": {"key": inward_key},
         "outwardIssue": {"key": outward_key}
     }
-    r = requests.post(url, headers=config.headers, data=json.dumps(payload), auth=config.auth)
-    r.raise_for_status()
+    _make_request("POST", url, config, data=payload)
 
 def main():
     config = load_config()
