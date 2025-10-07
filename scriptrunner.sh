@@ -1,3 +1,5 @@
+pip install responses
+
 export JIRA_BASE_URL="https://altimetrikjiraaccess.atlassian.net"
 export JIRA_EMAIL="altimetrikjiraaccess@gmail.com"
 export JIRA_API_TOKEN="Sub_Codex_POC"
