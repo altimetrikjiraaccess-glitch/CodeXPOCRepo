@@ -1,27 +1,70 @@
-import os, requests, sys, json
+import json
+import os
+import sys
+from dataclasses import dataclass
+from typing import Mapping
 
-JIRA_BASE    = os.environ["JIRA_BASE_URL"].rstrip("/")   # e.g. https://your-domain.atlassian.net
-JIRA_EMAIL   = os.environ["JIRA_EMAIL"]                   # your Atlassian account email
-JIRA_TOKEN   = os.environ["JIRA_API_TOKEN"]               # Atlassian API token
-PROJECT_KEY  = os.environ.get("JIRA_PROJECT_KEY", "SCRUM")
-STORY_KEY    = os.environ.get("STORY_KEY", "SCRUM-1")
-TEST_TYPE    = os.environ.get("TEST_ISSUE_TYPE", "Test")  # e.g. "Test", "Test Case", or "Task"
+import requests
 
-AC_FIELD_ID  = "customfield_10059"
 
-auth = (JIRA_EMAIL, JIRA_TOKEN)
-headers = {"Accept": "application/json", "Content-Type": "application/json"}
+AC_FIELD_ID = "customfield_10059"
 
-def get_story(key):
-    url = f"{JIRA_BASE}/rest/api/3/issue/{key}"
+
+@dataclass
+class JiraConfig:
+    base_url: str
+    email: str
+    token: str
+    project_key: str
+    story_key: str
+    test_type: str
+    issue_link_type: str
+
+    @property
+    def auth(self):
+        return self.email, self.token
+
+    @property
+    def headers(self):
+        return {"Accept": "application/json", "Content-Type": "application/json"}
+
+
+def load_config(env: Mapping[str, str] | None = None) -> JiraConfig:
+    """Create a :class:`JiraConfig` from environment variables.
+
+    Parameters
+    ----------
+    env:
+        Optional mapping used for tests. Defaults to :data:`os.environ`.
+    """
+
+    if env is None:
+        env = os.environ
+
+    missing = [key for key in ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN") if not env.get(key)]
+    if missing:
+        raise RuntimeError(f"Missing required environment variables: {', '.join(sorted(missing))}")
+
+    return JiraConfig(
+        base_url=env["JIRA_BASE_URL"].rstrip("/"),
+        email=env["JIRA_EMAIL"],
+        token=env["JIRA_API_TOKEN"],
+        project_key=env.get("JIRA_PROJECT_KEY", "SCRUM"),
+        story_key=env.get("STORY_KEY", "SCRUM-1"),
+        test_type=env.get("TEST_ISSUE_TYPE", "Test"),
+        issue_link_type=env.get("ISSUE_LINK_TYPE", "Relates"),
+    )
+
+def get_story(config: JiraConfig, key: str):
+    url = f"{config.base_url}/rest/api/3/issue/{key}"
     params = {"fields": f"summary,{AC_FIELD_ID}"}
-    r = requests.get(url, headers=headers, params=params, auth=auth)
+    r = requests.get(url, headers=config.headers, params=params, auth=config.auth)
     r.raise_for_status()
     return r.json()
 
-def ac_to_test_description(story_summary, ac_value):
+def ac_to_test_description(story_key: str, story_summary, ac_value):
     """
-    Convert AC content to a test description.
+    Convert AC content to a test description, scoped to ``story_key``.
     Handles either plain text or list/bullets.
     """
     if not ac_value:
@@ -34,7 +77,7 @@ def ac_to_test_description(story_summary, ac_value):
         ac_text = str(ac_value).strip()
 
     description = (
-        f"*Generated from story:* {STORY_KEY} — {story_summary}\n\n"
+        f"*Generated from story:* {story_key} — {story_summary}\n\n"
         f"*Acceptance Criteria:*\n{ac_text}\n\n"
         f"*Suggested Test Steps:*\n"
         f"1. Review AC and define preconditions\n"
@@ -44,41 +87,43 @@ def ac_to_test_description(story_summary, ac_value):
     )
     return description
 
-def create_test_issue(summary, description):
-    url = f"{JIRA_BASE}/rest/api/3/issue"
+def create_test_issue(config: JiraConfig, summary: str, description: str):
+    url = f"{config.base_url}/rest/api/3/issue"
     payload = {
         "fields": {
-            "project": {"key": PROJECT_KEY},
+            "project": {"key": config.project_key},
             "summary": f"[Auto-Test] {summary}",
-            "issuetype": {"name": TEST_TYPE},
+            "issuetype": {"name": config.test_type},
             # JIRA Cloud prefers ADF, but plain string still works for most setups:
             "description": description
         }
     }
-    r = requests.post(url, headers=headers, data=json.dumps(payload), auth=auth)
+    r = requests.post(url, headers=config.headers, data=json.dumps(payload), auth=config.auth)
     r.raise_for_status()
     return r.json()["key"]
 
-def link_issues(inward_key, outward_key, link_name="Relates"):
-    url = f"{JIRA_BASE}/rest/api/3/issueLink"
+def link_issues(config: JiraConfig, inward_key: str, outward_key: str, link_name: str = "Relates"):
+    url = f"{config.base_url}/rest/api/3/issueLink"
     payload = {
         "type": {"name": link_name},
         "inwardIssue": {"key": inward_key},
         "outwardIssue": {"key": outward_key}
     }
-    r = requests.post(url, headers=headers, data=json.dumps(payload), auth=auth)
+    r = requests.post(url, headers=config.headers, data=json.dumps(payload), auth=config.auth)
     r.raise_for_status()
 
 def main():
-    story = get_story(STORY_KEY)
+    config = load_config()
+
+    story = get_story(config, config.story_key)
     story_summary = story["fields"].get("summary", "(no summary)")
     ac_value = story["fields"].get(AC_FIELD_ID)
 
-    desc = ac_to_test_description(story_summary, ac_value)
-    test_key = create_test_issue(f"Tests for {STORY_KEY}", desc)
-    link_issues(test_key, STORY_KEY, link_name=os.environ.get("ISSUE_LINK_TYPE", "Relates"))
+    desc = ac_to_test_description(config.story_key, story_summary, ac_value)
+    test_key = create_test_issue(config, f"Tests for {config.story_key}", desc)
+    link_issues(config, test_key, config.story_key, link_name=config.issue_link_type)
 
-    print(f"✅ Created test issue {test_key} and linked to {STORY_KEY}")
+    print(f"✅ Created test issue {test_key} and linked to {config.story_key}")
 
 if __name__ == "__main__":
     try:
