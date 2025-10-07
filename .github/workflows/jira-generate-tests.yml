@@ -1,0 +1,41 @@
+name: Generate JIRA Test from Story AC
+
+on:
+  workflow_dispatch:
+    inputs:
+      story_key:
+        description: "Story issue key (e.g., SCRUM-1)"
+        required: true
+        default: "SCRUM-1"
+
+jobs:
+  create-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create script
+        run: |
+          cat > create_test_from_story.py << 'PY'
+          # (paste the exact Python script from above)
+          PY
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Create JIRA Test
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_PROJECT_KEY: SCRUM
+          STORY_KEY: ${{ github.event.inputs.story_key }}
+          TEST_ISSUE_TYPE: Test
+          ISSUE_LINK_TYPE: Relates
+        run: python create_test_from_story.py
