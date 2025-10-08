@@ -1,4 +1,4 @@
-import os, requests, sys, json
+import os, requests, sys, json, logging
 
 JIRA_BASE    = os.environ["JIRA_BASE_URL"].rstrip("/")   # e.g. https://your-domain.atlassian.net
 JIRA_EMAIL   = os.environ["JIRA_EMAIL"]                   # your Atlassian account email
@@ -8,6 +8,14 @@ STORY_KEY    = os.environ.get("STORY_KEY", "SCRUM-1")
 TEST_TYPE    = os.environ.get("TEST_ISSUE_TYPE", "Test")  # e.g. "Test", "Test Case", or "Task"
 
 AC_FIELD_ID  = "customfield_10059"
+
+logging.basicConfig(
+    level=logging.INFO,                      # DEBUG/INFO/WARNING/ERROR/CRITICAL
+    format="%(asctime)s %(levelname)s %(name)s:%(lineno)d - %(message)s"
+)
+log = logging.getLogger(__name__)
+
+log.info("JIRA BASE=%s JIRA Email=%s JIRA Token=%s Project_key=%s Story_Key=%s Test_type=%s",JIRA_BASE,JIRA_EMAIL,JIRA_TOKEN,PROJECT_KEY,STORY_KEY,TEST_TYPE)
 
 auth = (JIRA_EMAIL, JIRA_TOKEN)
 headers = {"Accept": "application/json", "Content-Type": "application/json"}
