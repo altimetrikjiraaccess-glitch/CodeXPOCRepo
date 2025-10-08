@@ -1,12 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
 
-export JIRA_BASE_URL="https://altimetrikjiraaccess.atlassian.net"
-export JIRA_EMAIL="altimetrikjiraaccess@gmail.com"
-export JIRA_API_TOKEN="ATATT3xFfGF0IxFZXndLW-YYpfvdofTzX-7t4mqpCsJA5Kysaw5eTrJOU5_a2lxFDC8pP0KFagitT5HwNuWzkYaRiEjd44RFgRBt-mxWGyyArw-VxVXd4uLbtIjLNYrUNylCplAkcD83GN-4Lo4ePH2JyU5NWd_-oVi1vwN7MU3k-1wSu-X4tHQ=D0C300D1"
-export JIRA_PROJECT_KEY="SCRUM"
-export STORY_KEY="SCRUM-1"
-export TEST_ISSUE_TYPE="Test"           # or "Test Case" (Zephyr), etc.
-export ISSUE_LINK_TYPE="Relates"        # or "Tests", "Blocks", depending on your scheme
+if [ -f ".env" ]; then
+  # Load environment variables from local .env file without exporting secrets to the repo.
+  set -a
+  source .env
+  set +a
+fi
 
+: "${JIRA_BASE_URL:?Set JIRA_BASE_URL in the environment or .env file}"
+: "${JIRA_EMAIL:?Set JIRA_EMAIL in the environment or .env file}"
+: "${JIRA_API_TOKEN:?Set JIRA_API_TOKEN in the environment or .env file}"
+: "${JIRA_PROJECT_KEY:?Set JIRA_PROJECT_KEY in the environment or .env file}"
+: "${STORY_KEY:?Set STORY_KEY in the environment or .env file}"
+: "${TEST_ISSUE_TYPE:?Set TEST_ISSUE_TYPE in the environment or .env file}"
+: "${ISSUE_LINK_TYPE:?Set ISSUE_LINK_TYPE in the environment or .env file}"
 
-
-python3 create_test_from_story.py
+python3 create_test_from_story.py "$@"

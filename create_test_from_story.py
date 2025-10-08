@@ -15,7 +15,16 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-log.info("JIRA BASE=%s JIRA Email=%s JIRA Token=%s Project_key=%s Story_Key=%s Test_type=%s",JIRA_BASE,JIRA_EMAIL,JIRA_TOKEN,PROJECT_KEY,STORY_KEY,TEST_TYPE)
+masked_token = f"{JIRA_TOKEN[:4]}…" if len(JIRA_TOKEN) > 4 else "***"
+log.info(
+    "JIRA BASE=%s JIRA Email=%s JIRA Token=%s Project_key=%s Story_Key=%s Test_type=%s",
+    JIRA_BASE,
+    JIRA_EMAIL,
+    masked_token,
+    PROJECT_KEY,
+    STORY_KEY,
+    TEST_TYPE,
+)
 
 auth = (JIRA_EMAIL, JIRA_TOKEN)
 headers = {"Accept": "application/json", "Content-Type": "application/json"}
