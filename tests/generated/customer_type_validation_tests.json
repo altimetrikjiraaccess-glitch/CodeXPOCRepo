@@ -1,0 +1,52 @@
+[
+  {
+    "Test Case Name": "Verify Customer Type field configuration",
+    "Steps": [
+      "Navigate to Setup and open Object Manager for Account.",
+      "Locate the Customer Type field in the Fields & Relationships section.",
+      "Review the field type, label, and picklist values.",
+      "Open the Account page layout and confirm the Customer Type field is present."
+    ],
+    "Expected Result": "Customer Type field exists as a picklist on Account with values Prospect, Customer, Partner and is included on the Account page layout."
+  },
+  {
+    "Test Case Name": "Create Customer account requires Customer Number",
+    "Steps": [
+      "Create a new Account record.",
+      "Set Customer Type to Customer.",
+      "Enter a value in the Customer Number field.",
+      "Populate remaining required fields and save the Account."
+    ],
+    "Expected Result": "Account record saves successfully without validation errors when Customer Type is Customer and Customer Number is populated."
+  },
+  {
+    "Test Case Name": "Validation prevents saving Customer without Customer Number",
+    "Steps": [
+      "Create a new Account record or edit an existing one.",
+      "Set Customer Type to Customer.",
+      "Leave Customer Number blank.",
+      "Attempt to save the Account."
+    ],
+    "Expected Result": "Save is blocked and the error message 'Customer Number is required when Customer Type is Customer.' is displayed."
+  },
+  {
+    "Test Case Name": "Changing Customer Type to Customer enforces Customer Number",
+    "Steps": [
+      "Open an existing Account with Customer Type set to Prospect or Partner.",
+      "Edit the record and change Customer Type to Customer.",
+      "Remove any value from Customer Number.",
+      "Attempt to save the Account."
+    ],
+    "Expected Result": "Validation rule prevents the save and displays the error message until Customer Number is populated."
+  },
+  {
+    "Test Case Name": "Non-Customer types do not require Customer Number",
+    "Steps": [
+      "Create or edit an Account record.",
+      "Set Customer Type to Prospect or Partner.",
+      "Leave Customer Number blank.",
+      "Populate remaining required fields and save the Account."
+    ],
+    "Expected Result": "Account record saves successfully without validation errors when Customer Type is Prospect or Partner and Customer Number is blank."
+  }
+]
