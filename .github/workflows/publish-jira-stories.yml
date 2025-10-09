@@ -1,0 +1,129 @@
+name: Publish Jira Stories
+on:
+  push:
+    branches: [ "**" ]
+    paths:
+      - ".codex/jira-stories.json"
+  pull_request:
+    paths:
+      - ".codex/jira-stories.json"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read stories JSON
+        id: read
+        run: |
+          if [ ! -f .codex/jira-stories.json ]; then
+            echo "No story file; exiting"
+            exit 0
+          fi
+          echo "stories=$(cat .codex/jira-stories.json | tr -d '\n' | sed 's/"/\\"/g')" >> $GITHUB_OUTPUT
+
+      - name: Create Jira issues & transition
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          STORIES_JSON_ESCAPED: ${{ steps.read.outputs.stories }}
+        run: |
+          set -euo pipefail
+          STORIES_JSON="$(echo "$STORIES_JSON_ESCAPED" | sed 's/\\"/"/g')"
+
+          projectKey=$(echo "$STORIES_JSON" | jq -r '.projectKey')
+          targetStatus=$(echo "$STORIES_JSON" | jq -r '.targetStatus')
+          defaultType=$(echo "$STORIES_JSON" | jq -r '.defaultIssueType // "Story"')
+
+          count=$(echo "$STORIES_JSON" | jq '.stories | length')
+          echo "Found $count stories for project $projectKey; target status: $targetStatus"
+
+          for i in $(seq 0 $((count-1))); do
+            story=$(echo "$STORIES_JSON" | jq ".stories[$i]")
+
+            summary=$(echo "$story" | jq -r '.summary')
+            desc=$(echo "$story" | jq -r '.description // ""')
+            labels=$(echo "$story" | jq -c '.labels // []')
+            points=$(echo "$story" | jq -r '.storyPoints // empty')
+            assignee=$(echo "$story" | jq -r '.assigneeEmail // empty')
+            type=$(echo "$story" | jq -r '.issueType // empty')
+            [ -z "$type" ] && type="$defaultType"
+
+            # Build create payload (v3 create issue)
+            create_payload=$(jq -n \
+              --arg projectKey "$projectKey" \
+              --arg summary "$summary" \
+              --arg description "$desc" \
+              --arg issuetype "$type" \
+              --argjson labels "$labels" \
+              --arg assignee "$assignee" \
+              --arg points "${points:-}" \
+              '
+              {
+                fields: {
+                  project: { key: $projectKey },
+                  summary: $summary,
+                  description: $description,
+                  issuetype: { name: $issuetype },
+                  labels: $labels
+                }
+              }
+              ')
+
+            # Optional fields (assignee/story points) – include only if provided
+            if [ -n "$assignee" ]; then
+              create_payload=$(echo "$create_payload" | jq --arg assignee "$assignee" '.fields.assignee = { emailAddress: $assignee }')
+            fi
+            if [ -n "${points:-}" ]; then
+              # Replace "customfield_10016" with your Story Points field id if different
+              create_payload=$(echo "$create_payload" | jq --argjson points "$points" '.fields.customfield_10016 = $points')
+            fi
+
+            echo "Creating: $summary"
+            create_resp=$(curl -sS -w "%{http_code}" -o /tmp/create_out.json \
+              -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+              -H "Accept: application/json" -H "Content-Type: application/json" \
+              --data "$create_payload" \
+              "$JIRA_BASE_URL/rest/api/3/issue")
+
+            if [ "$create_resp" != "201" ]; then
+              echo "Create failed (HTTP $create_resp):"
+              cat /tmp/create_out.json; exit 1
+            fi
+
+            key=$(jq -r '.key' /tmp/create_out.json)
+            echo "Created $key"
+
+            # Fetch available transitions for this issue
+            trans_resp=$(curl -sS \
+              -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+              -H "Accept: application/json" \
+              "$JIRA_BASE_URL/rest/api/3/issue/$key/transitions")
+
+            transition_id=$(echo "$trans_resp" | jq -r \
+              --arg target "$targetStatus" '.transitions[] | select(.to.name==$target) | .id' | head -n1)
+
+            if [ -z "$transition_id" ]; then
+              echo "No transition to \"$targetStatus\" available for $key. Available:"
+              echo "$trans_resp" | jq -r '.transitions[] | "\(.to.name) (id=\(.id))"'
+              continue
+            fi
+
+            # Transition the issue
+            trans_payload=$(jq -n --arg id "$transition_id" '{ transition: { id: $id } }')
+
+            tcode=$(curl -sS -w "%{http_code}" -o /dev/null \
+              -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+              -H "Accept: application/json" -H "Content-Type: application/json" \
+              --data "$trans_payload" \
+              "$JIRA_BASE_URL/rest/api/3/issue/$key/transitions")
+
+            if [ "$tcode" != "204" ]; then
+              echo "Transition to \"$targetStatus\" failed for $key (HTTP $tcode)"; exit 1
+            fi
+
+            echo "Transitioned $key → $targetStatus"
+          done
