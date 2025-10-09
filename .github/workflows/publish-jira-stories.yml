@@ -1,5 +1,8 @@
 name: Publish Jira Stories
 on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
   push:
     branches: [ "**" ]
     paths:
